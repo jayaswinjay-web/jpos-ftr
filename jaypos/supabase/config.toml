@@ -1,0 +1,6 @@
+
+[functions.admin-create-shop]
+enabled = true
+verify_jwt = false
+
+

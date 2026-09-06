@@ -1,0 +1,42 @@
+# Flutter
+build/
+.dart_tool/
+.packages
+.pub/
+pubspec.lock
+*.iml
+.idea/
+.vscode/
+*.g.dart
+*.freezed.dart
+*.gr.dart
+
+# Android
+android/.gradle/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# Windows
+windows/flutter/
+windows/runner/Generated*
+*.exe
+*.msix
+*.msi
+
+# Server
+server/node_modules/
+server/.env
+
+# Admin
+admin/node_modules/
+admin/dist/
+
+# General
+.DS_Store
+*.log
+*.zip
+*.db

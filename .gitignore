@@ -1,0 +1,15 @@
+# Build tooling / SDKs (too large for GitHub)
+android-sdk/
+jdk17/
+temp/
+
+# Separate website repo (hosted on GitHub already)
+jaypos/website/
+
+# Android signing secrets
+jaypos/android/key.properties
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
