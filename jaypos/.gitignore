@@ -10,6 +10,7 @@ pubspec.lock
 *.g.dart
 *.freezed.dart
 *.gr.dart
+.flutter-plugins-dependencies
 
 # Android
 android/.gradle/
