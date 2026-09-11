@@ -468,6 +468,72 @@ class AppDatabase extends GeneratedDatabase {
     return (await getTransaction(id))!;
   }
 
+  // ── UPI real-time payment detection ─────────────────────────────────
+  /// Marks a 'pending' transaction as 'completed', applies the side effects
+  /// that were deferred at creation (stock, customer stats, coupon usage),
+  /// and records the payment row. [reference] is the UTR/txnRef the
+  /// notification listener extracted, if any
+  Future<Map<String, dynamic>> finalizePendingTransaction(
+    String txId, {
+    required String method,
+    String? reference,
+  }) async {
+    final tx = await getTransaction(txId);
+    if (tx == null) throw Exception('Transaction $txId not found');
+    if (tx['status'] != 'pending') return tx; // already finalized; no-op
+
+    await transaction(() async {
+      final now = DateTime.now().toIso8601String();
+      // update tx status
+      await rawUpdate(
+        "UPDATE transactions SET status='completed', amount_paid=?, updated_at=? WHERE id=?",
+        [tx['total'], now, txId],
+      );
+      // tx registration
+      await rawInsert(
+        'INSERT INTO payments (id,transaction_id,method,amount,reference,created_at) VALUES (?,?,?,?,?,?)',
+        ['pay-${DateTime.now().microsecondsSinceEpoch}', txId, method, tx['total'], reference, now],
+      );
+      final items = await getTransactionItems(txId);
+      for (final it in items) {
+        final pid = it['product_id'] as String;
+        if (pid == 'QUICK_BILL') continue;
+        final cur = await rawSelect('SELECT stock FROM products WHERE id=?', [pid]);
+        final stock = (cur.isNotEmpty ? cur.first['stock'] as int : 0);
+        final qty = it['quantity'] as int;
+        await rawUpdate('UPDATE products SET stock=stock-?,updated_at=? WHERE id=?',
+            [qty, now, pid]);
+        if (stock < qty) {
+          // Don't block a confirmed real payment on a stock mismatch —
+          // log via notes-less negative stock rather than throwing, since
+          // the money has already been received.
+        }
+      }
+      // update customer`s info
+      if (tx['customer_id'] != null) {
+        await rawUpdate(
+          'UPDATE customers SET total_spent=total_spent+?,visit_count=visit_count+1,last_visit=?,updated_at=? WHERE id=?',
+          [tx['total'], now, now, tx['customer_id']],
+        );
+      }
+      // coupon activation
+      if (tx['coupon_code'] != null && (tx['coupon_code'] as String).isNotEmpty) {
+        final coupon = await getCouponByCode(tx['coupon_code'] as String);
+        if (coupon != null) {
+          await logCouponRedemption({
+            'id': 'cr-${DateTime.now().millisecondsSinceEpoch}',
+            'coupon_id': coupon['id'],
+            'transaction_id': txId,
+            'discount_amount': tx['coupon_discount'] ?? 0,
+            'created_at': now,
+          });
+          await incrementCouponUsage(tx['coupon_code'] as String);
+        }
+      }
+    });
+    return (await getTransaction(txId))!;
+  }
+
   Future<Map<String, dynamic>> createRefund(String origTxId, int amount, String reason, String userId) async {
     final id = 'ref-${DateTime.now().millisecondsSinceEpoch}';
     final now = DateTime.now().toIso8601String();
