@@ -534,6 +534,51 @@ class AppDatabase extends GeneratedDatabase {
     return (await getTransaction(txId))!;
   }
 
+  /// Cancels an abandoned pending UPI order (customer walked away). No stock
+  /// or customer-stat side effects were ever applied, so this is a plain delete.
+  Future<void> cancelPendingTransaction(String txId) async {
+    final tx = await getTransaction(txId);
+    if (tx == null || tx['status'] != 'pending') return;
+    await transaction(() async {
+      await rawDelete('DELETE FROM transaction_items WHERE transaction_id=?', [txId]);
+      await rawDelete('DELETE FROM transactions WHERE id=?', [txId]);
+    });
+  }
+
+  Future<Map<String, dynamic>?> getPendingTransactionByTxnRef(String txnRef) async {
+    final r = await rawSelect(
+        "SELECT * FROM transactions WHERE status='pending' AND txn_ref=? LIMIT 1", [txnRef]);
+    return r.isNotEmpty ? r.first : null;
+  }
+
+  /// Exact-amount fallback match. Only safe when there is a single open
+  /// pending order at the counter (mirrors the upi-pos reference heuristic).
+  Future<Map<String, dynamic>?> getSinglePendingTransactionByAmount(int amountPaise) async {
+    final pending = await rawSelect("SELECT * FROM transactions WHERE status='pending'");
+    if (pending.length != 1) return null;
+    return pending.first['total'] == amountPaise ? pending.first : null;
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingTransactions() =>
+      rawSelect("SELECT * FROM transactions WHERE status='pending' ORDER BY created_at DESC");
+
+  // ── UPI notification-event queue (written by UpiNotificationListener.kt) ──
+  Future<void> insertUpiPaymentEvent({
+    required int amountPaise,
+    String reference = '',
+    String txnRef = '',
+    String source = 'notification',
+  }) => rawInsert(
+        'INSERT INTO upi_payment_events (amount,reference,txn_ref,source,created_at,processed) VALUES (?,?,?,?,?,0)',
+        [amountPaise, reference, txnRef, source, DateTime.now().toIso8601String()],
+      );
+
+  Future<List<Map<String, dynamic>>> getUnprocessedUpiPaymentEvents() =>
+      rawSelect('SELECT * FROM upi_payment_events WHERE processed=0 ORDER BY id ASC');
+
+  Future<void> markUpiPaymentEventProcessed(int id) =>
+      rawUpdate('UPDATE upi_payment_events SET processed=1 WHERE id=?', [id]);
+
   Future<Map<String, dynamic>> createRefund(String origTxId, int amount, String reason, String userId) async {
     final id = 'ref-${DateTime.now().millisecondsSinceEpoch}';
     final now = DateTime.now().toIso8601String();
