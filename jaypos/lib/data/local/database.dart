@@ -398,19 +398,32 @@ class AppDatabase extends GeneratedDatabase {
   Future<List<Map<String, dynamic>>> getTransactionPayments(String txId) =>
     rawSelect('SELECT * FROM payments WHERE transaction_id=?', [txId]);
 
-  Future<Map<String, dynamic>> createTransaction(Map<String, dynamic> tx, List<Map<String, dynamic>> items, List<Map<String, dynamic>> payments) async {
+  /// [status] defaults to 'completed' to preserve existing cash/card behavior
+  /// (stock, customer stats and coupon usage are applied immediately).
+  /// Pass 'pending' for a UPI order awaiting real-time payment detection —
+  /// in that case those side effects are deferred to [finalizePendingTransaction]
+  /// so an abandoned/expired QR never touches stock or customer stats
+  Future<Map<String, dynamic>> createTransaction(
+    Map<String, dynamic> tx,
+    List<Map<String, dynamic>> items,
+    List<Map<String, dynamic>> payments, {
+    String status = 'completed',
+  }) async {
     late String id;
     await transaction(() async {
       id = tx['id'];
       await rawInsert(
-        'INSERT INTO transactions (id,invoice_no,transaction_type,customer_id,user_id,subtotal,discount_amount,discount_percent,tax_amount,total,round_off,amount_paid,change_amount,coupon_code,notes,is_synced,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [tx['id'],tx['invoice_no'],tx['transaction_type'],tx['customer_id'],tx['user_id'],tx['subtotal'],tx['discount_amount'],tx['discount_percent'],tx['tax_amount'],tx['total'],tx['round_off'],tx['amount_paid'],tx['change_amount'],tx['coupon_code'],tx['notes'],0,tx['created_at'],tx['updated_at']],
+        'INSERT INTO transactions (id,invoice_no,transaction_type,customer_id,user_id,subtotal,discount_amount,discount_percent,tax_amount,total,round_off,amount_paid,change_amount,coupon_code,notes,is_synced,created_at,updated_at,status,txn_ref) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [tx['id'],tx['invoice_no'],tx['transaction_type'],tx['customer_id'],tx['user_id'],tx['subtotal'],tx['discount_amount'],tx['discount_percent'],tx['tax_amount'],tx['total'],tx['round_off'],tx['amount_paid'],tx['change_amount'],tx['coupon_code'],tx['notes'],0,tx['created_at'],tx['updated_at'],status,tx['txn_ref']],
       );
       for (final it in items) {
         await rawInsert(
           'INSERT INTO transaction_items (id,transaction_id,product_id,product_name,product_sku,quantity,unit_price,tax_rate,tax_inclusive,line_total,line_discount) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
           [it['id'],id,it['product_id'],it['product_name'],it['product_sku'],it['quantity'],it['unit_price'],it['tax_rate'],it['tax_inclusive'],it['line_total'],it['line_discount']],
         );
+        // "if the transaction still requires payment,
+        // do nothing further with this item"
+        if (status == 'pending') continue;
         final pid = it['product_id'] as String;
         if (pid != 'QUICK_BILL') {
           final updatedAt = DateTime.now().toIso8601String();
@@ -427,6 +440,7 @@ class AppDatabase extends GeneratedDatabase {
           [pay['id'],id,pay['method'],pay['amount'],pay['reference'],pay['created_at']],
         );
       }
+      if (status == 'pending') return; // rest deferred to finalizePendingTransaction
       // Update customer stats
       if (tx['customer_id'] != null) {
         final now = DateTime.now().toIso8601String();
