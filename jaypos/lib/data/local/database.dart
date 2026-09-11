@@ -233,6 +233,12 @@ class AppDatabase extends GeneratedDatabase {
     await customStatement('''
       CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at)
     ''');
+    await customStatement('''
+      CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status)
+    ''');
+    await customStatement('''
+      CREATE INDEX IF NOT EXISTS idx_transactions_txn_ref ON transactions(txn_ref)
+    ''');
   }
 
   // ── USERS ─────────────────────────────────────────────────────────
