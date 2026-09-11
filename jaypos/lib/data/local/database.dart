@@ -9,9 +9,9 @@ import 'package:path_provider/path_provider.dart';
 // Database
 // =========================================================================
 class AppDatabase extends GeneratedDatabase {
-  AppDatabase(QueryExecutor e) : super(e);
+  AppDatabase(super.e); // super parameter
 
-  @override int get schemaVersion => 2;
+  @override int get schemaVersion => 3;
 
   @override
   Iterable<TableInfo> get allTables => [];
@@ -28,6 +28,28 @@ class AppDatabase extends GeneratedDatabase {
       if (from == 1) {
         await customStatement('CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)');
         await customStatement('CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at)');
+      }
+      if (from < 3) {
+        // real-time UPI payment detection: transactions gain a status
+        await customStatement("ALTER TABLE transactions ADD COLUMN status TEXT NOT NULL DEFAULT 'completed'");
+        // txn_ref – transaction reference
+        await customStatement('ALTER TABLE transactions ADD COLUMN txn_ref TEXT');
+        // create indexes on statuses and txn_refs of transactions for effective search
+        await customStatement('CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status)');
+        await customStatement('CREATE INDEX IF NOT EXISTS idx_transactions_txn_ref ON transactions(txn_ref)');
+        // create new table `upi_payment_events`
+        await customStatement('''
+          CREATE TABLE IF NOT EXISTS upi_payment_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            amount INTEGER NOT NULL,
+            reference TEXT DEFAULT '',
+            txn_ref TEXT DEFAULT '',
+            source TEXT DEFAULT 'notification',
+            created_at TEXT NOT NULL,
+            processed INTEGER NOT NULL DEFAULT 0
+          )
+        ''');
+        // processed: 0 – false, 1 – true
       }
     },
   );
