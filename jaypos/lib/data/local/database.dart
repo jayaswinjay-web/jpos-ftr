@@ -217,6 +217,17 @@ class AppDatabase extends GeneratedDatabase {
       )
     ''');
     await customStatement('''
+      CREATE TABLE IF NOT EXISTS upi_payment_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        amount INTEGER NOT NULL,
+        reference TEXT DEFAULT '',
+        txn_ref TEXT DEFAULT '',
+        source TEXT DEFAULT 'notification',
+        created_at TEXT NOT NULL,
+        processed INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await customStatement('''
       CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)
     ''');
     await customStatement('''
