@@ -123,6 +123,7 @@ class AppDatabase extends GeneratedDatabase {
         round_off INTEGER NOT NULL DEFAULT 0, amount_paid INTEGER NOT NULL,
         change_amount INTEGER NOT NULL DEFAULT 0, coupon_code TEXT, notes TEXT,
         is_synced INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'completed', txn_ref TEXT,
         FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
       )
