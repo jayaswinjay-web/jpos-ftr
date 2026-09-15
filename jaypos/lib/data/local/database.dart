@@ -9,9 +9,9 @@ import 'package:path_provider/path_provider.dart';
 // Database
 // =========================================================================
 class AppDatabase extends GeneratedDatabase {
-  AppDatabase(QueryExecutor e) : super(e);
+  AppDatabase(super.e); // super parameter
 
-  @override int get schemaVersion => 2;
+  @override int get schemaVersion => 3;
 
   @override
   Iterable<TableInfo> get allTables => [];
@@ -28,6 +28,28 @@ class AppDatabase extends GeneratedDatabase {
       if (from == 1) {
         await customStatement('CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)');
         await customStatement('CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at)');
+      }
+      if (from < 3) {
+        // real-time UPI payment detection: transactions gain a status
+        await customStatement("ALTER TABLE transactions ADD COLUMN status TEXT NOT NULL DEFAULT 'completed'");
+        // txn_ref – transaction reference
+        await customStatement('ALTER TABLE transactions ADD COLUMN txn_ref TEXT');
+        // create indexes on statuses and txn_refs of transactions for effective search
+        await customStatement('CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status)');
+        await customStatement('CREATE INDEX IF NOT EXISTS idx_transactions_txn_ref ON transactions(txn_ref)');
+        // create new table `upi_payment_events`
+        await customStatement('''
+          CREATE TABLE IF NOT EXISTS upi_payment_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            amount INTEGER NOT NULL,
+            reference TEXT DEFAULT '',
+            txn_ref TEXT DEFAULT '',
+            source TEXT DEFAULT 'notification',
+            created_at TEXT NOT NULL,
+            processed INTEGER NOT NULL DEFAULT 0
+          )
+        ''');
+        // processed: 0 – false, 1 – true
       }
     },
   );
@@ -101,6 +123,7 @@ class AppDatabase extends GeneratedDatabase {
         round_off INTEGER NOT NULL DEFAULT 0, amount_paid INTEGER NOT NULL,
         change_amount INTEGER NOT NULL DEFAULT 0, coupon_code TEXT, notes TEXT,
         is_synced INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'completed', txn_ref TEXT,
         FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
       )
@@ -194,10 +217,27 @@ class AppDatabase extends GeneratedDatabase {
       )
     ''');
     await customStatement('''
+      CREATE TABLE IF NOT EXISTS upi_payment_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        amount INTEGER NOT NULL,
+        reference TEXT DEFAULT '',
+        txn_ref TEXT DEFAULT '',
+        source TEXT DEFAULT 'notification',
+        created_at TEXT NOT NULL,
+        processed INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await customStatement('''
       CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)
     ''');
     await customStatement('''
       CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at)
+    ''');
+    await customStatement('''
+      CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status)
+    ''');
+    await customStatement('''
+      CREATE INDEX IF NOT EXISTS idx_transactions_txn_ref ON transactions(txn_ref)
     ''');
   }
 
@@ -358,19 +398,32 @@ class AppDatabase extends GeneratedDatabase {
   Future<List<Map<String, dynamic>>> getTransactionPayments(String txId) =>
     rawSelect('SELECT * FROM payments WHERE transaction_id=?', [txId]);
 
-  Future<Map<String, dynamic>> createTransaction(Map<String, dynamic> tx, List<Map<String, dynamic>> items, List<Map<String, dynamic>> payments) async {
+  /// [status] defaults to 'completed' to preserve existing cash/card behavior
+  /// (stock, customer stats and coupon usage are applied immediately).
+  /// Pass 'pending' for a UPI order awaiting real-time payment detection —
+  /// in that case those side effects are deferred to [finalizePendingTransaction]
+  /// so an abandoned/expired QR never touches stock or customer stats
+  Future<Map<String, dynamic>> createTransaction(
+    Map<String, dynamic> tx,
+    List<Map<String, dynamic>> items,
+    List<Map<String, dynamic>> payments, {
+    String status = 'completed',
+  }) async {
     late String id;
     await transaction(() async {
       id = tx['id'];
       await rawInsert(
-        'INSERT INTO transactions (id,invoice_no,transaction_type,customer_id,user_id,subtotal,discount_amount,discount_percent,tax_amount,total,round_off,amount_paid,change_amount,coupon_code,notes,is_synced,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [tx['id'],tx['invoice_no'],tx['transaction_type'],tx['customer_id'],tx['user_id'],tx['subtotal'],tx['discount_amount'],tx['discount_percent'],tx['tax_amount'],tx['total'],tx['round_off'],tx['amount_paid'],tx['change_amount'],tx['coupon_code'],tx['notes'],0,tx['created_at'],tx['updated_at']],
+        'INSERT INTO transactions (id,invoice_no,transaction_type,customer_id,user_id,subtotal,discount_amount,discount_percent,tax_amount,total,round_off,amount_paid,change_amount,coupon_code,notes,is_synced,created_at,updated_at,status,txn_ref) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [tx['id'],tx['invoice_no'],tx['transaction_type'],tx['customer_id'],tx['user_id'],tx['subtotal'],tx['discount_amount'],tx['discount_percent'],tx['tax_amount'],tx['total'],tx['round_off'],tx['amount_paid'],tx['change_amount'],tx['coupon_code'],tx['notes'],0,tx['created_at'],tx['updated_at'],status,tx['txn_ref']],
       );
       for (final it in items) {
         await rawInsert(
           'INSERT INTO transaction_items (id,transaction_id,product_id,product_name,product_sku,quantity,unit_price,tax_rate,tax_inclusive,line_total,line_discount) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
           [it['id'],id,it['product_id'],it['product_name'],it['product_sku'],it['quantity'],it['unit_price'],it['tax_rate'],it['tax_inclusive'],it['line_total'],it['line_discount']],
         );
+        // "if the transaction still requires payment,
+        // do nothing further with this item"
+        if (status == 'pending') continue;
         final pid = it['product_id'] as String;
         if (pid != 'QUICK_BILL') {
           final updatedAt = DateTime.now().toIso8601String();
@@ -387,6 +440,7 @@ class AppDatabase extends GeneratedDatabase {
           [pay['id'],id,pay['method'],pay['amount'],pay['reference'],pay['created_at']],
         );
       }
+      if (status == 'pending') return; // rest deferred to finalizePendingTransaction
       // Update customer stats
       if (tx['customer_id'] != null) {
         final now = DateTime.now().toIso8601String();
@@ -413,6 +467,117 @@ class AppDatabase extends GeneratedDatabase {
     });
     return (await getTransaction(id))!;
   }
+
+  // ── UPI real-time payment detection ─────────────────────────────────
+  /// Marks a 'pending' transaction as 'completed', applies the side effects
+  /// that were deferred at creation (stock, customer stats, coupon usage),
+  /// and records the payment row. [reference] is the UTR/txnRef the
+  /// notification listener extracted, if any
+  Future<Map<String, dynamic>> finalizePendingTransaction(
+    String txId, {
+    required String method,
+    String? reference,
+  }) async {
+    final tx = await getTransaction(txId);
+    if (tx == null) throw Exception('Transaction $txId not found');
+    if (tx['status'] != 'pending') return tx; // already finalized; no-op
+
+    await transaction(() async {
+      final now = DateTime.now().toIso8601String();
+      // update tx status
+      await rawUpdate(
+        "UPDATE transactions SET status='completed', amount_paid=?, updated_at=? WHERE id=?",
+        [tx['total'], now, txId],
+      );
+      // tx registration
+      await rawInsert(
+        'INSERT INTO payments (id,transaction_id,method,amount,reference,created_at) VALUES (?,?,?,?,?,?)',
+        ['pay-${DateTime.now().microsecondsSinceEpoch}', txId, method, tx['total'], reference, now],
+      );
+      final items = await getTransactionItems(txId);
+      for (final it in items) {
+        final pid = it['product_id'] as String;
+        if (pid == 'QUICK_BILL') continue;
+        final cur = await rawSelect('SELECT stock FROM products WHERE id=?', [pid]);
+        final stock = (cur.isNotEmpty ? cur.first['stock'] as int : 0);
+        final qty = it['quantity'] as int;
+        await rawUpdate('UPDATE products SET stock=stock-?,updated_at=? WHERE id=?',
+            [qty, now, pid]);
+        if (stock < qty) {
+          // Don't block a confirmed real payment on a stock mismatch —
+          // log via notes-less negative stock rather than throwing, since
+          // the money has already been received.
+        }
+      }
+      // update customer`s info
+      if (tx['customer_id'] != null) {
+        await rawUpdate(
+          'UPDATE customers SET total_spent=total_spent+?,visit_count=visit_count+1,last_visit=?,updated_at=? WHERE id=?',
+          [tx['total'], now, now, tx['customer_id']],
+        );
+      }
+      // coupon activation
+      if (tx['coupon_code'] != null && (tx['coupon_code'] as String).isNotEmpty) {
+        final coupon = await getCouponByCode(tx['coupon_code'] as String);
+        if (coupon != null) {
+          await logCouponRedemption({
+            'id': 'cr-${DateTime.now().millisecondsSinceEpoch}',
+            'coupon_id': coupon['id'],
+            'transaction_id': txId,
+            'discount_amount': tx['coupon_discount'] ?? 0,
+            'created_at': now,
+          });
+          await incrementCouponUsage(tx['coupon_code'] as String);
+        }
+      }
+    });
+    return (await getTransaction(txId))!;
+  }
+
+  /// Cancels an abandoned pending UPI order (customer walked away). No stock
+  /// or customer-stat side effects were ever applied, so this is a plain delete.
+  Future<void> cancelPendingTransaction(String txId) async {
+    final tx = await getTransaction(txId);
+    if (tx == null || tx['status'] != 'pending') return;
+    await transaction(() async {
+      await rawDelete('DELETE FROM transaction_items WHERE transaction_id=?', [txId]);
+      await rawDelete('DELETE FROM transactions WHERE id=?', [txId]);
+    });
+  }
+
+  Future<Map<String, dynamic>?> getPendingTransactionByTxnRef(String txnRef) async {
+    final r = await rawSelect(
+        "SELECT * FROM transactions WHERE status='pending' AND txn_ref=? LIMIT 1", [txnRef]);
+    return r.isNotEmpty ? r.first : null;
+  }
+
+  /// Exact-amount fallback match. Only safe when there is a single open
+  /// pending order at the counter (mirrors the upi-pos reference heuristic).
+  Future<Map<String, dynamic>?> getSinglePendingTransactionByAmount(int amountPaise) async {
+    final pending = await rawSelect("SELECT * FROM transactions WHERE status='pending'");
+    if (pending.length != 1) return null;
+    return pending.first['total'] == amountPaise ? pending.first : null;
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingTransactions() =>
+      rawSelect("SELECT * FROM transactions WHERE status='pending' ORDER BY created_at DESC");
+
+  // ── UPI notification-event queue (written by UpiNotificationListener.kt) ──
+  Future<void> insertUpiPaymentEvent({
+    required int amountPaise,
+    String reference = '',
+    String txnRef = '',
+    String source = 'notification',
+  }) => rawInsert(
+        'INSERT INTO upi_payment_events (amount,reference,txn_ref,source,created_at,processed) VALUES (?,?,?,?,?,0)',
+        [amountPaise, reference, txnRef, source, DateTime.now().toIso8601String()],
+      );
+
+  Future<List<Map<String, dynamic>>> getUnprocessedUpiPaymentEvents() =>
+      rawSelect('SELECT * FROM upi_payment_events WHERE processed=0 ORDER BY id ASC');
+
+  Future<void> markUpiPaymentEventProcessed(int id) =>
+      rawUpdate('UPDATE upi_payment_events SET processed=1 WHERE id=?', [id]);
 
   Future<Map<String, dynamic>> createRefund(String origTxId, int amount, String reason, String userId) async {
     final id = 'ref-${DateTime.now().millisecondsSinceEpoch}';
