@@ -431,7 +431,9 @@ class BillingController extends StateNotifier<BillingState> {
     }
   }
 
-  
+  /// Customer walked away / merchant closed the QR without paying
+  Future<void> cancelUpiOrder(String txId) =>
+      _db.cancelPendingTransaction(txId);
 
   Future<void> holdBill(String userId) async {
     final data = {
