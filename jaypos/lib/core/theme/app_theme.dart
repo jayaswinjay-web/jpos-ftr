@@ -214,6 +214,9 @@ class AppTheme {
           ),
         ),
       ),
+      tabBarTheme: const TabBarThemeData(
+        tabAlignment: TabAlignment.start,
+      ),
     );
   }
 
@@ -347,6 +350,9 @@ class AppTheme {
           fontSize: 14,
           color: AppColors.darkOnSurfaceVariant,
         ),
+      ),
+      tabBarTheme: const TabBarThemeData(
+        tabAlignment: TabAlignment.start,
       ),
     );
   }
