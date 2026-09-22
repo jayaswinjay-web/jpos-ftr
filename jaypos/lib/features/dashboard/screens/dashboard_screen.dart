@@ -78,19 +78,31 @@ class DashboardScreen extends ConsumerWidget {
     ]))),
   );
 
-  Widget _actionsGrid(ThemeData t, BuildContext ctx) => Card(child: Padding(
-    padding: const EdgeInsets.all(16),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Quick Actions', style: t.textTheme.titleMedium),
-      const SizedBox(height: 12),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        _actionTile(ctx, Icons.add_circle_outline, 'New Bill', AppColors.primary, '/billing'),
-        _actionTile(ctx, Icons.flash_on, 'Quick Bill', AppColors.warning, '/quick-bill'),
-        _actionTile(ctx, Icons.inventory_2_outlined, 'Products', AppColors.success, '/inventory'),
-        _actionTile(ctx, Icons.analytics_outlined, 'Reports', AppColors.info, '/reports'),
-      ]),
-    ]),
-  ));
+  Widget _actionsGrid(ThemeData t, BuildContext ctx) => SizedBox(
+  width: double.infinity,
+  child: Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Quick Actions', style: t.textTheme.titleMedium),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _actionTile(ctx, Icons.add_circle_outline, 'New Bill', AppColors.primary, '/billing'),
+              _actionTile(ctx, Icons.flash_on, 'Quick Bill', AppColors.warning, '/quick-bill'),
+              _actionTile(ctx, Icons.inventory_2_outlined, 'Products', AppColors.success, '/inventory'),
+              _actionTile(ctx, Icons.analytics_outlined, 'Reports', AppColors.info, '/reports'),
+            ],
+          ),
+        ],
+      ),
+    ),
+  ),
+);
 
   Widget _actionTile(BuildContext ctx, IconData icon, String label, Color color, String route) => SizedBox(
     width: (MediaQuery.of(ctx).size.width - 100) / 4 < 80 ? 72 : (MediaQuery.of(ctx).size.width - 100) / 4,
