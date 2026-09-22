@@ -67,8 +67,18 @@ flutter {
 subprojects {
     afterEvaluate { project ->
         if (project.hasProperty("android")) {
+
             project.android.compileSdk = 36
             project.android.targetSdk = 36
+            
+            project.android.compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+        }
+        
+        if (project.hasProperty("kotlinOptions")) {
+            project.kotlinOptions.jvmTarget = "17"
         }
     }
 }
