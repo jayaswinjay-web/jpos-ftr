@@ -78,34 +78,91 @@ class DashboardScreen extends ConsumerWidget {
     ]))),
   );
 
-  Widget _actionsGrid(ThemeData t, BuildContext ctx) => Card(child: Padding(
-    padding: const EdgeInsets.all(16),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Quick Actions', style: t.textTheme.titleMedium),
-      const SizedBox(height: 12),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        _actionTile(ctx, Icons.add_circle_outline, 'New Bill', AppColors.primary, '/billing'),
-        _actionTile(ctx, Icons.flash_on, 'Quick Bill', AppColors.warning, '/quick-bill'),
-        _actionTile(ctx, Icons.inventory_2_outlined, 'Products', AppColors.success, '/inventory'),
-        _actionTile(ctx, Icons.analytics_outlined, 'Reports', AppColors.info, '/reports'),
-      ]),
-    ]),
-  ));
+  Widget _actionsGrid(ThemeData t, BuildContext ctx) {
+    final isWide = MediaQuery.of(ctx).size.width > 600;
+    final tiles = [
+      _actionTile(ctx, Icons.add_circle_outline, 'New Bill', AppColors.primary, '/billing'),
+      _actionTile(ctx, Icons.flash_on, 'Quick Bill', AppColors.warning, '/quick-bill'),
+      _actionTile(ctx, Icons.inventory_2_outlined, 'Products', AppColors.success, '/inventory'),
+      _actionTile(ctx, Icons.analytics_outlined, 'Reports', AppColors.info, '/reports'),
+    ];
 
-  Widget _actionTile(BuildContext ctx, IconData icon, String label, Color color, String route) => SizedBox(
-    width: (MediaQuery.of(ctx).size.width - 100) / 4 < 80 ? 72 : (MediaQuery.of(ctx).size.width - 100) / 4,
-    child: InkWell(onTap: () => ctx.go(route), borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
-        child: Column(children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 4),
-          Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)),
-        ]),
+    return SizedBox(
+      width: double.infinity,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Quick Actions', style: t.textTheme.titleMedium),
+              const SizedBox(height: 12),
+              if (isWide)
+                Row(
+                  children: [
+                    for (var i = 0; i < tiles.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      Expanded(child: tiles[i]),
+                    ],
+                  ],
+                )
+              else ...[
+                Row(
+                  children: [
+                    Expanded(child: tiles[0]),
+                    const SizedBox(width: 8),
+                    Expanded(child: tiles[1]),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: tiles[2]),
+                    const SizedBox(width: 8),
+                    Expanded(child: tiles[3]),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _actionTile(
+    BuildContext ctx,
+    IconData icon,
+    String label,
+    Color color,
+    String route,
+  ) {
+    return Material(
+      color: color.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => ctx.go(route),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 28),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _weekChart(ThemeData t, WidgetRef ref) {
     final weekSales = ref.watch(weekSalesProvider);

@@ -202,35 +202,58 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
         if (taxData.isNotEmpty) _taxRow('Total Tax', Money(totalTax), bold: true),
       ]))),
       const SizedBox(height: AppSpacing.md),
-      Row(children: [
-        Expanded(child: OutlinedButton.icon(onPressed: () async {
-          final db = ref.read(databaseProvider);
-          final data = await db.getTaxSummary();
-          if (!mounted) return;
-          final csv = StringBuffer('Tax Rate,Tax Amount\n');
-          for (final r in data) {
-            csv.writeln('${r['tax_rate']}%,${r['tax']}');
-          }
-          final dir = await getTemporaryDirectory();
-          final file = File('${dir.path}/gstr1.csv');
-          await file.writeAsString(csv.toString());
-          await Share.shareXFiles([XFile(file.path)], text: 'GSTR-1 Report');
-        }, icon: const Icon(Icons.description, size: 18), label: const Text('GSTR-1'))),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: OutlinedButton.icon(onPressed: () async {
-          final db = ref.read(databaseProvider);
-          final data = await db.getTaxSummary();
-          if (!mounted) return;
-          final csv = StringBuffer('Tax Rate,Tax Amount\n');
-          for (final r in data) {
-            csv.writeln('${r['tax_rate']}%,${r['tax']}');
-          }
-          final dir = await getTemporaryDirectory();
-          final file = File('${dir.path}/gstr3b.csv');
-          await file.writeAsString(csv.toString());
-          await Share.shareXFiles([XFile(file.path)], text: 'GSTR-3B Report');
-        }, icon: const Icon(Icons.description, size: 18), label: const Text('GSTR-3B'))),
-      ]),
+      Row(
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final db = ref.read(databaseProvider);
+                  final data = await db.getTaxSummary();
+                  if (!mounted) return;
+                  final csv = StringBuffer('Tax Rate,Tax Amount\n');
+                  for (final r in data) {
+                    csv.writeln('${r['tax_rate']}%,${r['tax']}');
+                  }
+                  final dir = await getTemporaryDirectory();
+                  final file = File('${dir.path}/gstr1.csv');
+                  await file.writeAsString(csv.toString());
+                  await Share.shareXFiles([XFile(file.path)], text: 'GSTR-1 Report');
+                },
+                icon: const Icon(Icons.description, size: 18),
+                label: const Text('GSTR-1'),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: SizedBox(
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final db = ref.read(databaseProvider);
+                  final data = await db.getTaxSummary();
+                  if (!mounted) return;
+                  final csv = StringBuffer('Tax Rate,Tax Amount\n');
+                  for (final r in data) {
+                    csv.writeln('${r['tax_rate']}%,${r['tax']}');
+                  }
+                  final dir = await getTemporaryDirectory();
+                  final file = File('${dir.path}/gstr3b.csv');
+                  await file.writeAsString(csv.toString());
+                  await Share.shareXFiles([XFile(file.path)], text: 'GSTR-3B Report');
+                },
+                icon: const Icon(Icons.description, size: 18),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('GSTR-3B'),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     ]));
   }
 
