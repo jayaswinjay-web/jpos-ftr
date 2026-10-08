@@ -13,3 +13,5 @@ jaypos/android/key.properties
 .DS_Store
 Thumbs.db
 desktop.ini
+
+.vscode

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +13,7 @@ import '../../../core/theme/tokens.dart';
 import '../../../core/utils/money.dart';
 import '../../../data/local/database.dart';
 import '../../../services/scanner_service.dart';
+import '../../../services/upi_detection_service.dart';
 import '../../auth/controllers/auth_controller.dart';
 import '../controllers/billing_controller.dart';
 import '../widgets/continuous_scanner.dart';
@@ -91,17 +94,23 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     if (!mounted) return;
     if (!valid) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid or expired coupon')),);
+        const SnackBar(content: Text('Invalid or expired coupon')),
+      );
       return;
     }
     await ref.read(billingControllerProvider.notifier).setCoupon(code);
     if (!mounted) return;
     final updated = ref.read(billingControllerProvider);
     if (updated.couponDiscount > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
           content: Text(
-              'Coupon applied! Discount: ${Money(updated.couponDiscount).format()}',),
-          backgroundColor: AppColors.success,),);
+            'Coupon applied! Discount: '
+            '${Money(updated.couponDiscount).format()}',
+          ),
+          backgroundColor: AppColors.success,
+        ),
+      );
     }
   }
 
@@ -117,10 +126,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         title: const Text('New Bill'),
         actions: [
           IconButton(
-              icon: const Icon(Icons.flash_on),
-              tooltip: 'Fast Scan',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const ContinuousScanner(),),),),
+            icon: const Icon(Icons.flash_on),
+            tooltip: 'Fast Scan',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ContinuousScanner()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.pause_circle_outline),
             tooltip: 'Hold Bill',
@@ -135,33 +146,40 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             },
           ),
           IconButton(
-              icon: const Icon(Icons.replay),
-              tooltip: 'Recall Held',
-              onPressed: () => _showHeldBills(context),),
+            icon: const Icon(Icons.replay),
+            tooltip: 'Recall Held',
+            onPressed: () => _showHeldBills(context),
+          ),
           IconButton(
-              icon: const Icon(Icons.percent),
-              tooltip: 'Discount',
-              onPressed: () => _showDiscount(context),),
+            icon: const Icon(Icons.percent),
+            tooltip: 'Discount',
+            onPressed: () => _showDiscount(context),
+          ),
           IconButton(
-              icon: const Icon(Icons.undo),
-              tooltip: 'Return',
-              onPressed: () => context.go('/return-refund'),),
+            icon: const Icon(Icons.undo),
+            tooltip: 'Return',
+            onPressed: () => context.go('/return-refund'),
+          ),
         ],
       ),
       body: Column(
         children: [
           Expanded(
             child: isWide
-                ? Row(children: [
-                    Expanded(flex: 3, child: _buildLeft(t)),
-                    const VerticalDivider(width: 1),
-                    Expanded(flex: 2, child: _buildRight(t, bill, auth)),
-                  ],)
-                : Column(children: [
-                    Expanded(child: _buildLeft(t)),
-                    const Divider(height: 1),
-                    Expanded(child: _buildRight(t, bill, auth)),
-                  ],),
+                ? Row(
+                    children: [
+                      Expanded(flex: 3, child: _buildLeft(t)),
+                      const VerticalDivider(width: 1),
+                      Expanded(flex: 2, child: _buildRight(t, bill, auth)),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      Expanded(child: _buildLeft(t)),
+                      const Divider(height: 1),
+                      Expanded(child: _buildRight(t, bill, auth)),
+                    ],
+                  ),
           ),
           _buildBottomBar(t, bill, auth),
         ],
@@ -182,16 +200,18 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                        icon: const Icon(Icons.qr_code_scanner),
-                        onPressed: () => _scanBarcode(context),
-                        tooltip: 'Scan',),
+                      icon: const Icon(Icons.qr_code_scanner),
+                      onPressed: () => _scanBarcode(context),
+                      tooltip: 'Scan',
+                    ),
                     if (_searchCtl.text.isNotEmpty)
                       IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchCtl.clear();
-                            _search('');
-                          },),
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchCtl.clear();
+                          _search('');
+                        },
+                      ),
                   ],
                 ),
               ),
@@ -205,17 +225,25 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.search,
-                                size: 48, color: t.colorScheme.outline,),
+                            Icon(
+                              Icons.search,
+                              size: 48,
+                              color: t.colorScheme.outline,
+                            ),
                             const SizedBox(height: 8),
-                            Text('Search products above',
-                                style: t.textTheme.bodyMedium,),
+                            Text(
+                              'Search products above',
+                              style: t.textTheme.bodyMedium,
+                            ),
                           ],
                         ),
                       )
                     : Center(
-                        child: Text('No products found',
-                            style: t.textTheme.bodyMedium,),))
+                        child: Text(
+                          'No products found',
+                          style: t.textTheme.bodyMedium,
+                        ),
+                      ))
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     itemCount: _searchResults.length,
@@ -230,19 +258,28 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                                color: AppColors.primaryContainer,
-                                borderRadius: BorderRadius.circular(8),),
+                              color: AppColors.primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                             child: const Icon(Icons.inventory_2, size: 20),
                           ),
-                          title: Text(p['name'] as String,
-                              style: const TextStyle(
-                                  fontSize: 14, fontWeight: FontWeight.w600,),),
+                          title: Text(
+                            p['name'] as String,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           subtitle: Text(
-                              'SKU: ${p['sku']}  \u2022 Stock: $stock',
-                              style: const TextStyle(fontSize: 11),),
-                          trailing: Text(Money(p['sale_price'] as int).format(),
-                              style: GoogleFonts.spaceGrotesk(
-                                  fontWeight: FontWeight.w600,),),
+                            'SKU: ${p['sku']}  \u2022 Stock: $stock',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          trailing: Text(
+                            Money(p['sale_price'] as int).format(),
+                            style: GoogleFonts.spaceGrotesk(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           onTap: stock > 0
                               ? () => ref
                                   .read(billingControllerProvider.notifier)
@@ -271,7 +308,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                 suffixIcon: _phoneCtl.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.check),
-                        onPressed: () => _attachCustomer(_phoneCtl.text),)
+                        onPressed: () => _attachCustomer(_phoneCtl.text),
+                      )
                     : null,
               ),
               keyboardType: TextInputType.phone,
@@ -283,21 +321,26 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
               margin: const EdgeInsets.symmetric(horizontal: 12),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                  color: AppColors.primaryContainer,
-                  borderRadius: BorderRadius.circular(8),),
+                color: AppColors.primaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Row(
                 children: [
                   const Icon(Icons.person, size: 16, color: AppColors.primary),
                   const SizedBox(width: 8),
                   Expanded(
-                      child: Text(
-                          '${_attachedCustomer!['name']} (${_attachedCustomer!['loyalty_points'] ?? 0} pts)',
-                          style: const TextStyle(fontSize: 12),),),
+                    child: Text(
+                      '${_attachedCustomer!['name']} '
+                      '(${_attachedCustomer!['loyalty_points'] ?? 0} pts)',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
                   if ((_attachedCustomer!['loyalty_points'] as int? ?? 0) > 0)
                     TextButton(
-                        onPressed: () => _showLoyaltyRedeem(context),
-                        child: const Text('Redeem',
-                            style: TextStyle(fontSize: 11),),),
+                      onPressed: () => _showLoyaltyRedeem(context),
+                      child:
+                          const Text('Redeem', style: TextStyle(fontSize: 11)),
+                    ),
                 ],
               ),
             ),
@@ -307,8 +350,11 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.shopping_cart_outlined,
-                            size: 48, color: t.colorScheme.outline,),
+                        Icon(
+                          Icons.shopping_cart_outlined,
+                          size: 48,
+                          color: t.colorScheme.outline,
+                        ),
                         const SizedBox(height: 8),
                         Text('Cart is empty', style: t.textTheme.bodyMedium),
                       ],
@@ -323,59 +369,81 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                         margin: const EdgeInsets.only(bottom: 4),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4,),
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           child: Row(
                             children: [
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(item.name,
-                                        style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,),),
-                                    Text(Money(item.unitPrice).format(),
-                                        style: const TextStyle(fontSize: 11),),
+                                    Text(
+                                      item.name,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      Money(item.unitPrice).format(),
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
                                   ],
                                 ),
                               ),
                               Row(
                                 children: [
                                   IconButton(
-                                      icon: const Icon(
-                                          Icons.remove_circle_outline,
-                                          size: 18,),
-                                      onPressed: item.quantity > 1
-                                          ? () => ref
-                                              .read(billingControllerProvider
-                                                  .notifier,)
-                                              .updateQty(i, -1)
-                                          : null,),
-                                  Text('${item.quantity}',
-                                      style: GoogleFonts.spaceGrotesk(
-                                          fontWeight: FontWeight.w600,),),
+                                    icon: const Icon(
+                                      Icons.remove_circle_outline,
+                                      size: 18,
+                                    ),
+                                    onPressed: item.quantity > 1
+                                        ? () => ref
+                                            .read(
+                                              billingControllerProvider
+                                                  .notifier,
+                                            )
+                                            .updateQty(i, -1)
+                                        : null,
+                                  ),
+                                  Text(
+                                    '${item.quantity}',
+                                    style: GoogleFonts.spaceGrotesk(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                   IconButton(
-                                      icon: const Icon(Icons.add_circle_outline,
-                                          size: 18,),
-                                      onPressed: () => ref
-                                          .read(billingControllerProvider
-                                              .notifier,)
-                                          .updateQty(i, 1),),
+                                    icon: const Icon(
+                                      Icons.add_circle_outline,
+                                      size: 18,
+                                    ),
+                                    onPressed: () => ref
+                                        .read(
+                                          billingControllerProvider.notifier,
+                                        )
+                                        .updateQty(i, 1),
+                                  ),
                                 ],
                               ),
                               SizedBox(
-                                  width: 80,
-                                  child: Text(
-                                      Money(item.unitPrice * item.quantity)
-                                          .format(),
-                                      textAlign: TextAlign.right,
-                                      style: GoogleFonts.spaceGrotesk(
-                                          fontWeight: FontWeight.w600,),),),
+                                width: 80,
+                                child: Text(
+                                  Money(item.unitPrice * item.quantity)
+                                      .format(),
+                                  textAlign: TextAlign.right,
+                                  style: GoogleFonts.spaceGrotesk(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
                               IconButton(
-                                  icon: const Icon(Icons.close, size: 16),
-                                  onPressed: () => ref
-                                      .read(billingControllerProvider.notifier)
-                                      .removeItem(i),),
+                                icon: const Icon(Icons.close, size: 16),
+                                onPressed: () => ref
+                                    .read(billingControllerProvider.notifier)
+                                    .removeItem(i),
+                              ),
                             ],
                           ),
                         ),
@@ -386,38 +454,62 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                color: t.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                border: Border(top: BorderSide(color: t.dividerColor)),),
+              color:
+                  t.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              border: Border(top: BorderSide(color: t.dividerColor)),
+            ),
             child: Column(
               children: [
                 if (bill.couponCode != null)
                   Row(
                     children: [
-                      const Icon(Icons.card_giftcard,
-                          size: 14, color: AppColors.primary,),
+                      const Icon(
+                        Icons.card_giftcard,
+                        size: 14,
+                        color: AppColors.primary,
+                      ),
                       const SizedBox(width: 4),
                       Text(
-                          'Coupon: ${bill.couponCode} (-${Money(bill.couponDiscount).format()})',
-                          style: const TextStyle(
-                              fontSize: 11, color: AppColors.primary,),),
+                        'Coupon: ${bill.couponCode} '
+                        '(-${Money(bill.couponDiscount).format()})',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.primary,
+                        ),
+                      ),
                     ],
                   ),
                 _tr('Subtotal', Money(bill.subtotal).format(), t),
                 _tr('Tax', Money(bill.taxAmount).format(), t),
                 if (bill.billDiscount > 0)
-                  _tr('Bill Discount', '-${Money(bill.billDiscount).format()}',
-                      t,
-                      color: AppColors.success,),
+                  _tr(
+                    'Bill Discount',
+                    '-${Money(bill.billDiscount).format()}',
+                    t,
+                    color: AppColors.success,
+                  ),
                 if (bill.couponDiscount > 0)
-                  _tr('Coupon Discount',
-                      '-${Money(bill.couponDiscount).format()}', t,
-                      color: AppColors.primary,),
+                  _tr(
+                    'Coupon Discount',
+                    '-${Money(bill.couponDiscount).format()}',
+                    t,
+                    color: AppColors.primary,
+                  ),
                 if (_loyaltyRedeem > 0)
-                  _tr('Loyalty', '-${Money(_loyaltyRedeem).format()}', t,
-                      color: AppColors.primary,),
+                  _tr(
+                    'Loyalty',
+                    '-${Money(_loyaltyRedeem).format()}',
+                    t,
+                    color: AppColors.primary,
+                  ),
                 const Divider(),
-                _tr('Total', Money(bill.grandTotal).format(), t,
-                    bold: true, large: true,),
+                _tr(
+                  'Total',
+                  Money(bill.grandTotal).format(),
+                  t,
+                  bold: true,
+                  large: true,
+                ),
               ],
             ),
           ),
@@ -428,8 +520,9 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-            color: t.colorScheme.surface,
-            border: Border(top: BorderSide(color: t.dividerColor)),),
+          color: t.colorScheme.surface,
+          border: Border(top: BorderSide(color: t.dividerColor)),
+        ),
         child: SafeArea(
           child: Row(
             children: [
@@ -455,8 +548,9 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                         ),
                       ),
                       ActionChip(
-                          label: const Text('Coupon'),
-                          onPressed: () => _showCouponDialog(context),),
+                        label: const Text('Coupon'),
+                        onPressed: () => _showCouponDialog(context),
+                      ),
                     ],
                   ),
                 ),
@@ -478,7 +572,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                         },
                   icon: const Icon(Icons.receipt_long),
                   label: Text(
-                      '₹${(bill.grandTotal / 100).toStringAsFixed(0)} Pay',),
+                    '₹${(bill.grandTotal / 100).toStringAsFixed(0)} Pay',
+                  ),
                 ),
               ),
             ],
@@ -493,20 +588,25 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       builder: (d) => AlertDialog(
         title: const Text('Apply Coupon'),
         content: TextField(
-            controller: _couponCtl,
-            decoration: InputDecoration(
-                labelText: 'Coupon Code',
-                hintText: 'e.g. SAVE20',
-                prefixStyle: GoogleFonts.spaceGrotesk(),),),
+          controller: _couponCtl,
+          decoration: InputDecoration(
+            labelText: 'Coupon Code',
+            hintText: 'e.g. SAVE20',
+            prefixStyle: GoogleFonts.spaceGrotesk(),
+          ),
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(d), child: const Text('Cancel'),),
+            onPressed: () => Navigator.pop(d),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
-              onPressed: () {
-                _applyCoupon();
-                Navigator.pop(d);
-              },
-              child: const Text('Apply'),),
+            onPressed: () {
+              _applyCoupon();
+              Navigator.pop(d);
+            },
+            child: const Text('Apply'),
+          ),
         ],
       ),
     );
@@ -525,15 +625,17 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             Text('Available: $pts points (₹$pts)'),
             const SizedBox(height: 12),
             TextField(
-                controller: ctl,
-                decoration:
-                    const InputDecoration(labelText: 'Points to redeem'),
-                keyboardType: TextInputType.number,),
+              controller: ctl,
+              decoration: const InputDecoration(labelText: 'Points to redeem'),
+              keyboardType: TextInputType.number,
+            ),
           ],
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(d), child: const Text('Cancel'),),
+            onPressed: () => Navigator.pop(d),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () {
               final r = int.tryParse(ctl.text) ?? 0;
@@ -561,28 +663,39 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Invoice: ${tx['invoice_no']}',
-                style: GoogleFonts.spaceGrotesk(
-                    fontWeight: FontWeight.w700, fontSize: 18,),),
+            Text(
+              'Invoice: ${tx['invoice_no']}',
+              style: GoogleFonts.spaceGrotesk(
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
+            ),
             const SizedBox(height: 12),
             Text('Subtotal: ${Money(tx['subtotal'] as int).format()}'),
             Text('Tax: ${Money(tx['tax_amount'] as int).format()}'),
-            Text('Total: ${Money(tx['total'] as int).format()}',
-                style: const TextStyle(fontWeight: FontWeight.w700),),
+            Text(
+              'Total: ${Money(tx['total'] as int).format()}',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
           ],
         ),
         actions: [
           TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-              },
-              child: const Text('Close'),),
+            onPressed: () {
+              Navigator.pop(ctx);
+            },
+            child: const Text('Close'),
+          ),
           ElevatedButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                context.pushNamed('receipt', pathParameters: {'id': tx['id']});
-              },
-              child: const Text('View Receipt'),),
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.pushNamed(
+                'receipt',
+                pathParameters: {'id': tx['id']},
+              );
+            },
+            child: const Text('View Receipt'),
+          ),
         ],
       ),
     );
@@ -594,25 +707,28 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Bill Discount'),
         content: TextField(
-            controller: _discCtl,
-            decoration: const InputDecoration(labelText: 'Discount (%)'),
-            keyboardType: TextInputType.number,),
+          controller: _discCtl,
+          decoration: const InputDecoration(labelText: 'Discount (%)'),
+          keyboardType: TextInputType.number,
+        ),
         actions: [
           TextButton(
-              onPressed: () {
-                _discCtl.clear();
-                ref.read(billingControllerProvider.notifier).setDiscount(0);
-                Navigator.pop(ctx);
-              },
-              child: const Text('Remove'),),
+            onPressed: () {
+              _discCtl.clear();
+              ref.read(billingControllerProvider.notifier).setDiscount(0);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Remove'),
+          ),
           ElevatedButton(
-              onPressed: () {
-                ref
-                    .read(billingControllerProvider.notifier)
-                    .setDiscount(double.tryParse(_discCtl.text) ?? 0);
-                Navigator.pop(ctx);
-              },
-              child: const Text('Apply'),),
+            onPressed: () {
+              ref
+                  .read(billingControllerProvider.notifier)
+                  .setDiscount(double.tryParse(_discCtl.text) ?? 0);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Apply'),
+          ),
         ],
       ),
     );
@@ -622,51 +738,58 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     final bills =
         await ref.read(billingControllerProvider.notifier).getHeldBills();
     if (!context.mounted) return;
-    await showModalBottomSheet(
-      context: context,
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
+    unawaited(
+      showModalBottomSheet(
+        context: context,
+        builder: (ctx) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('Held Bills',
-                  style: Theme.of(context).textTheme.titleLarge,),),
-          if (bills.isEmpty)
-            const Padding(
-                padding: EdgeInsets.all(24), child: Text('No held bills'),),
-          ...bills.map(
-            (b) => ListTile(
-              title: Text(b['label'] as String? ?? 'Bill'),
-              subtitle: Text(b['held_at'] as String? ?? ''),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.restore),
-                    onPressed: () async {
-                      await ref
-                          .read(billingControllerProvider.notifier)
-                          .restoreHeldBill(b['bill_data'] as String);
-                      await ref
-                          .read(databaseProvider)
-                          .deleteHeldBill(b['id'] as String);
-                      if (context.mounted) Navigator.pop(ctx);
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () async {
-                      await ref
-                          .read(databaseProvider)
-                          .deleteHeldBill(b['id'] as String);
-                      if (context.mounted) Navigator.pop(ctx);
-                    },
-                  ),
-                ],
+              child: Text(
+                'Held Bills',
+                style: Theme.of(ctx).textTheme.titleLarge,
               ),
             ),
-          ),
-        ],
+            if (bills.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('No held bills'),
+              ),
+            ...bills.map(
+              (b) => ListTile(
+                title: Text(b['label'] as String? ?? 'Bill'),
+                subtitle: Text(b['held_at'] as String? ?? ''),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.restore),
+                      onPressed: () async {
+                        await ref
+                            .read(billingControllerProvider.notifier)
+                            .restoreHeldBill(b['bill_data'] as String);
+                        await ref
+                            .read(databaseProvider)
+                            .deleteHeldBill(b['id'] as String);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () async {
+                        await ref
+                            .read(databaseProvider)
+                            .deleteHeldBill(b['id'] as String);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -683,51 +806,72 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-                controller: cardC,
-                decoration: const InputDecoration(
-                    labelText: 'Card Number', hintText: '4111 1111 1111 1111',),
-                keyboardType: TextInputType.number,),
+              controller: cardC,
+              decoration: const InputDecoration(
+                labelText: 'Card Number',
+                hintText: '4111 1111 1111 1111',
+              ),
+              keyboardType: TextInputType.number,
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
-                    child: TextField(
-                        controller: expC,
-                        decoration: const InputDecoration(
-                            labelText: 'Expiry', hintText: 'MM/YY',),),),
+                  child: TextField(
+                    controller: expC,
+                    decoration: const InputDecoration(
+                      labelText: 'Expiry',
+                      hintText: 'MM/YY',
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 8),
                 Expanded(
-                    child: TextField(
-                        controller: cvvC,
-                        decoration: const InputDecoration(
-                            labelText: 'CVV', hintText: '123',),
-                        obscureText: true,
-                        keyboardType: TextInputType.number,),),
+                  child: TextField(
+                    controller: cvvC,
+                    decoration: const InputDecoration(
+                      labelText: 'CVV',
+                      hintText: '123',
+                    ),
+                    obscureText: true,
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 8),
-            const Text('Demo mode: no real charge will be made',
-                style:
-                    TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),),
+            const Text(
+              'Demo mode: no real charge will be made',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Pay'),),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Pay'),
+          ),
         ],
       ),
     );
-    if ((confirmed ?? false) && context.mounted) {
+    if (confirmed ?? false) {
+      if (!context.mounted) return;
       await _completeCheckout(context, auth);
     }
   }
 
   Future<void> _handleUpiPayment(
-      BuildContext context, BillingState bill, AuthState auth,) async {
+    BuildContext context,
+    BillingState bill,
+    AuthState auth,
+  ) async {
     final db = ref.read(databaseProvider);
     final upiId = await db.getSetting('upi_id');
     if (upiId == null || upiId.isEmpty) {
@@ -745,7 +889,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
     // Create the pending order first: the QR must carry the txnRef that the
     // notification listener will match against. Stock/loyalty/coupons are NOT
-    // committed yet — that happens only when the payment is confirmed
+    // committed yet — that happens only when the payment is confirmed.
     final pending = await ref
         .read(billingControllerProvider.notifier)
         .createPendingUpiOrder(
@@ -765,78 +909,140 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       return;
     }
     if (!context.mounted) return;
-    // 'paid' → manual confirmation, 'cancelled' → merchant cancelled,
-    // null → dialog dismissed without a choice (treated as cancelled)
+
+    BuildContext? dialogContext;
+    // 'paid' → manual confirmation, 'auto' → detected by the notification
+    // listener, 'cancelled' → merchant cancelled, null → dismissed.
     String? outcome;
+
+    // Auto-detection: the service already flipped the row to completed in the
+    // local DB, so here we only close the dialog and show the receipt.
+    final detection = ref.read(upiDetectionServiceProvider);
+    final canDetect = await detection.isNotificationAccessGranted();
+    if (!context.mounted) {
+      // Left mid-flow while the permission check was in flight — drop the
+      // pending row instead of orphaning it.
+      await ref
+          .read(billingControllerProvider.notifier)
+          .cancelUpiOrder(pending.transactionId);
+      return;
+    }
+
+    StreamSubscription<UpiMatch>? sub;
+    if (canDetect) {
+      detection.startDetection();
+      sub = detection.matches.listen((match) {
+        if (match.transactionId != pending.transactionId) return;
+        outcome = 'auto';
+        if (dialogContext != null && dialogContext!.mounted) {
+          Navigator.pop(dialogContext!);
+        }
+      });
+    }
+
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Scan & Pay (UPI)'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+      builder: (ctx) {
+        dialogContext = ctx;
+        return AlertDialog(
+          title: const Text('Scan & Pay (UPI)'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: QrImageView(
+                  data: pending.upiPayString,
+                  size: 200,
+                  backgroundColor: Colors.white,
+                ),
               ),
-              child: QrImageView(
-                data: pending.upiPayString,
-                size: 200,
-                backgroundColor: Colors.white,
+              const SizedBox(height: 12),
+              Text(
+                'Pay ${Money(pending.amountPaise).format()} via UPI',
+                style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.w600),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Pay ${Money(pending.amountPaise).format()} via UPI',
-              style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Text(upiId,
+              const SizedBox(height: 4),
+              Text(
+                upiId,
                 style: const TextStyle(
-                    fontSize: 12, color: AppColors.onSurfaceVariant,),),
-            const SizedBox(height: 4),
-            Text(
-              'Ref: ${pending.txnRef}',
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.onSurfaceVariant,),
+                  fontSize: 12,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Ref: ${pending.txnRef}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                final uri = Uri.tryParse(pending.upiPayString);
+                if (uri != null && await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              child: const Text('Open UPI App'),
+            ),
+            TextButton(
+              onPressed: () {
+                outcome = 'cancelled';
+                Navigator.pop(ctx);
+              },
+              child: const Text('Cancel'),
+            ),
+            // Manual fallback — unchanged behavior for the merchant, but it now
+            // finalizes the same pending order instead of creating a new one.
+            ElevatedButton(
+              onPressed: () {
+                outcome = 'paid';
+                Navigator.pop(ctx);
+              },
+              child: const Text('Payment Received'),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              final uri = Uri.tryParse(pending.upiPayString);
-              if (uri != null && await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
-            child: const Text('Open UPI App'),
-          ),
-          TextButton(
-            onPressed: () {
-              outcome = 'cancelled';
-              Navigator.pop(ctx);
-            },
-            child: const Text('Cancel'),
-          ),
-          // Manual fallback — unchanged behavior for the merchant, but it now
-          // finalizes the same pending order instead of creating a new one.
-          ElevatedButton(
-            onPressed: () {
-              outcome = 'paid';
-              Navigator.pop(ctx);
-            },
-            child: const Text('Payment Received'),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
+    await sub?.cancel();
+
+    if (outcome == 'auto') {
+      // Already finalized in the local DB by the detection service.
+      final result = await ref
+          .read(databaseProvider)
+          .getTransaction(pending.transactionId);
+      ref.read(billingControllerProvider.notifier).clearCart();
+      if (result != null && context.mounted) {
+        setState(() {
+          _loyaltyRedeem = 0;
+          _attachedCustomer = null;
+          _phoneCtl.clear();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment received — bill marked PAID'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        _showReceipt(context, result);
+      }
+      return;
+    }
+
     if (outcome != 'paid') {
-      // Cancelled or dismissed — don't leave a stray pending row behind
+      // Cancelled or dismissed — don't leave a stray pending row behind.
       await ref
           .read(billingControllerProvider.notifier)
           .cancelUpiOrder(pending.transactionId);
@@ -867,8 +1073,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       });
       _showReceipt(context, result);
     } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Checkout failed'), backgroundColor: AppColors.danger,),);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Checkout failed'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
     }
   }
 
@@ -895,21 +1105,32 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     );
   }
 
-  Widget _tr(String l, String v, ThemeData t,
-          {bool bold = false, bool large = false, Color? color,}) =>
+  Widget _tr(
+    String l,
+    String v,
+    ThemeData t, {
+    bool bold = false,
+    bool large = false,
+    Color? color,
+  }) =>
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 1),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(l,
-                style: t.textTheme.bodyMedium
-                    ?.copyWith(fontWeight: bold ? FontWeight.w600 : null),),
-            Text(v,
-                style: GoogleFonts.spaceGrotesk(
-                    fontSize: large ? 18 : 14,
-                    fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
-                    color: color,),),
+            Text(
+              l,
+              style: t.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: bold ? FontWeight.w600 : null),
+            ),
+            Text(
+              v,
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: large ? 18 : 14,
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
+                color: color,
+              ),
+            ),
           ],
         ),
       );
